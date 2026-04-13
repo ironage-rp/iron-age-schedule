@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <title>Iron Age · Schedule Manager</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -419,9 +422,90 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#eef6ec;min-height:10
   /* Memo + rules: full width */
   .memo-rules-wrap { margin: 8px !important; }
 }
+
+/* ── LOGIN OVERLAY ── */
+#login-overlay{
+  position:fixed;inset:0;background:linear-gradient(135deg,#1c3d1c 0%,#2a562a 100%);
+  display:flex;align-items:center;justify-content:center;z-index:9999;
+}
+#login-box{
+  background:white;border-radius:24px;padding:40px 32px;width:300px;
+  text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);
+}
+#login-box h2{font-size:20px;font-weight:900;color:#1c3d1c;margin-bottom:4px;}
+#login-box p{font-size:12px;color:#888;margin-bottom:24px;}
+#pw-dots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
+#pw-dots span{
+  width:16px;height:16px;border-radius:50%;border:2px solid #1c3d1c;
+  background:transparent;transition:background 0.15s;
+}
+#pw-dots span.filled{background:#1c3d1c;}
+#login-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.kp-btn{
+  background:#f0f9f0;border:1px solid #d0e8d0;border-radius:12px;
+  padding:14px;font-size:20px;font-weight:700;color:#1c3d1c;cursor:pointer;
+  transition:all 0.1s;
+}
+.kp-btn:active{background:#1c3d1c;color:white;}
+.kp-clear{background:#fef0f0;border-color:#f0d0d0;color:#c0392b;}
+#login-error{color:#e74c3c;font-size:12px;min-height:16px;margin-top:4px;}
+
+/* ── CHANGE PASSWORD MODAL ── */
+#chpw-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;align-items:center;justify-content:center;}
+#chpw-box{background:white;border-radius:20px;padding:28px;width:280px;text-align:center;}
+#chpw-box h3{font-size:15px;font-weight:800;color:#1c3d1c;margin-bottom:16px;}
+#chpw-box input{
+  width:100%;border:1px solid #c8e0c8;border-radius:10px;
+  padding:10px 12px;font-size:14px;text-align:center;letter-spacing:4px;
+  outline:none;margin-bottom:10px;font-family:inherit;
+}
+#chpw-box input:focus{border-color:#1c3d1c;}
+#chpw-msg{font-size:11px;min-height:16px;margin-bottom:12px;}
 </style>
 </head>
 <body>
+
+<!-- ═══ LOGIN OVERLAY ═══ -->
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>&#128274; Schedule Manager</h2>
+    <p>Iron Age &middot; Rego Park</p>
+    <div id="pw-dots">
+      <span id="d0"></span><span id="d1"></span>
+      <span id="d2"></span><span id="d3"></span>
+    </div>
+    <div id="login-keypad">
+      <button class="kp-btn" onclick="kpPress('1')">1</button>
+      <button class="kp-btn" onclick="kpPress('2')">2</button>
+      <button class="kp-btn" onclick="kpPress('3')">3</button>
+      <button class="kp-btn" onclick="kpPress('4')">4</button>
+      <button class="kp-btn" onclick="kpPress('5')">5</button>
+      <button class="kp-btn" onclick="kpPress('6')">6</button>
+      <button class="kp-btn" onclick="kpPress('7')">7</button>
+      <button class="kp-btn" onclick="kpPress('8')">8</button>
+      <button class="kp-btn" onclick="kpPress('9')">9</button>
+      <button class="kp-btn kp-clear" onclick="kpClear()">&#10005;</button>
+      <button class="kp-btn" onclick="kpPress('0')">0</button>
+      <button class="kp-btn" onclick="kpBack()">&#9003;</button>
+    </div>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ═══ CHANGE PASSWORD MODAL ═══ -->
+<div id="chpw-modal" onclick="if(event.target===this)closeChpw()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;align-items:center;justify-content:center;">
+  <div id="chpw-box">
+    <h3>&#128273; &#48708;&#48128;&#48264;&#54840; &#48320;&#44221;</h3>
+    <input type="password" id="chpw-old" placeholder="&#54788;&#51116; &#48708;&#48128;&#48264;&#54840;" maxlength="8">
+    <input type="password" id="chpw-new" placeholder="&#49352; &#48708;&#48128;&#48264;&#54840;" maxlength="8">
+    <input type="password" id="chpw-new2" placeholder="&#49352; &#48708;&#48128;&#48264;&#54840; &#54869;&#51064;" maxlength="8">
+    <div id="chpw-msg" style="font-size:11px;min-height:16px;margin-bottom:12px;color:#e74c3c;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeChpw()" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:10px;background:#f5f5f5;cursor:pointer;font-family:inherit;">&#52712;&#49548;</button>
+      <button onclick="doChangePassword()" style="flex:1;padding:10px;background:#1c3d1c;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">&#48320;&#44221;</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== HEADER ===== -->
 <header id="app-header" class="bg-[#1c3d1c] text-white px-5 py-3 flex items-center gap-3 no-print">
@@ -739,6 +823,203 @@ var DEFAULT_RULES = [
 // ══════════════════════════════════
 // APP STATE
 // ══════════════════════════════════
+// ══════════════════════════════════
+// FIREBASE CONFIG
+// ══════════════════════════════════
+// ⚠️ Replace with YOUR Firebase project config
+var FIREBASE_CONFIG = {
+   apiKey: "AIzaSyBGB9ZGb1J_b_Kt6mbKUosQXlzatpDmxkI",
+    authDomain: "iron-age-schedule.firebaseapp.com",
+    databaseURL: "https://iron-age-schedule-default-rtdb.firebaseio.com",
+    projectId: "iron-age-schedule",
+    storageBucket: "iron-age-schedule.firebasestorage.app",
+    messagingSenderId: "760827305891",
+    appId: "1:760827305891:web:8a9ee0a66cd1b2bad1c416"
+  };
+
+var fbApp = null;
+var fbDb  = null;
+var fbLastSave = 0;
+var FB_GUARD_MS = 3000;
+
+function initFirebase(){
+  try {
+    if(!firebase.apps.length) fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    else fbApp = firebase.app();
+    fbDb = firebase.database();
+  } catch(e){ console.error('Firebase init error:', e); }
+}
+
+// ══════════════════════════════════
+// PASSWORD / AUTH
+// ══════════════════════════════════
+var kpBuffer = '';
+
+function hashPw(pw){
+  var encoder = new TextEncoder();
+  var data = encoder.encode(pw + '_ia_sched_salt_2024');
+  return crypto.subtle.digest('SHA-256', data).then(function(buf){
+    return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+
+function checkRememberToken(){
+  var t = localStorage.getItem('ia_auth_token');
+  if(!t) return false;
+  try{
+    var obj = JSON.parse(t);
+    return obj.expires > Date.now();
+  } catch(e){ return false; }
+}
+
+function saveRememberToken(){
+  var expires = Date.now() + 365*24*60*60*1000; // 1 year
+  localStorage.setItem('ia_auth_token', JSON.stringify({expires: expires}));
+}
+
+function clearRememberToken(){
+  localStorage.removeItem('ia_auth_token');
+}
+
+function showLoginOverlay(){
+  document.getElementById('login-overlay').style.display='flex';
+}
+
+function hideLoginOverlay(){
+  document.getElementById('login-overlay').style.display='none';
+}
+
+function kpPress(d){
+  if(kpBuffer.length >= 4) return;
+  kpBuffer += d;
+  updateDots();
+  if(kpBuffer.length === 4) setTimeout(tryLogin, 100);
+}
+function kpBack(){ kpBuffer=kpBuffer.slice(0,-1); updateDots(); document.getElementById('login-error').textContent=''; }
+function kpClear(){ kpBuffer=''; updateDots(); document.getElementById('login-error').textContent=''; }
+function updateDots(){
+  for(var i=0;i<4;i++){
+    var el=document.getElementById('d'+i);
+    if(el) el.className = i<kpBuffer.length?'filled':'';
+  }
+}
+
+function tryLogin(){
+  var pw = kpBuffer;
+  kpBuffer='';
+  updateDots();
+  if(!fbDb){ document.getElementById('login-error').textContent='Firebase 연결 안됨'; return; }
+  hashPw(pw).then(function(hash){
+    fbDb.ref('ironAge/config/passwordHash').once('value', function(snap){
+      var stored = snap.val();
+      if(!stored){
+        // First time: set initial password hash and grant access
+        fbDb.ref('ironAge/config/passwordHash').set(hash, function(){
+          onLoginSuccess();
+        });
+      } else if(stored === hash){
+        onLoginSuccess();
+      } else {
+        document.getElementById('login-error').textContent = '❌ 비밀번호가 틀렸습니다';
+        setTimeout(function(){ document.getElementById('login-error').textContent=''; }, 2000);
+      }
+    });
+  });
+}
+
+function onLoginSuccess(){
+  saveRememberToken();
+  hideLoginOverlay();
+  loadFromFirebase();
+}
+
+// ══════════════════════════════════
+// CHANGE PASSWORD
+// ══════════════════════════════════
+function openChpw(){
+  document.getElementById('chpw-old').value='';
+  document.getElementById('chpw-new').value='';
+  document.getElementById('chpw-new2').value='';
+  document.getElementById('chpw-msg').textContent='';
+  document.getElementById('chpw-msg').style.color='#e74c3c';
+  document.getElementById('chpw-modal').style.display='flex';
+}
+function closeChpw(){ document.getElementById('chpw-modal').style.display='none'; }
+function doChangePassword(){
+  var oldPw = document.getElementById('chpw-old').value.trim();
+  var newPw = document.getElementById('chpw-new').value.trim();
+  var newPw2= document.getElementById('chpw-new2').value.trim();
+  var msg = document.getElementById('chpw-msg');
+  if(!oldPw||!newPw||!newPw2){ msg.textContent='모두 입력하세요'; return; }
+  if(newPw !== newPw2){ msg.textContent='새 비밀번호가 일치하지 않습니다'; return; }
+  if(newPw.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; return; }
+  hashPw(oldPw).then(function(oldHash){
+    fbDb.ref('ironAge/config/passwordHash').once('value', function(snap){
+      if(snap.val() !== oldHash){ msg.textContent='현재 비밀번호가 틀렸습니다'; return; }
+      hashPw(newPw).then(function(newHash){
+        fbDb.ref('ironAge/config/passwordHash').set(newHash, function(){
+          msg.style.color='#27ae60';
+          msg.textContent='✓ 비밀번호가 변경되었습니다';
+          clearRememberToken();
+          setTimeout(function(){ closeChpw(); showLoginOverlay(); }, 1500);
+        });
+      });
+    });
+  });
+}
+
+// ══════════════════════════════════
+// FIREBASE DATA LOAD
+// ══════════════════════════════════
+function loadFromFirebase(){
+  if(!fbDb){ initFromLocalAndRender(); return; }
+  fbDb.ref('ironAge/appData').on('value', function(snap){
+    if(Date.now() - fbLastSave < FB_GUARD_MS) return; // ignore own write echo
+    var data = snap.val();
+    if(data){
+      if(data.employees !== undefined) APP.employees = data.employees || [];
+      if(data.schedule  !== undefined) APP.schedule  = data.schedule;
+      if(data.saved     !== undefined) APP.saved     = data.saved || [];
+      if(data.storeName !== undefined) APP.storeName = data.storeName;
+      if(data.lang      !== undefined) APP.lang      = data.lang;
+    } else {
+      // No Firebase data yet: migrate from localStorage
+      var raw = localStorage.getItem('ia_sched_v5');
+      if(raw){ try{ var loc=JSON.parse(raw); APP=loc; }catch(e){} }
+    }
+    initFromLocalAndRender();
+  });
+}
+
+function initFromLocalAndRender(){
+  if(!APP.employees) APP.employees=[];
+  if(!APP.saved) APP.saved=[];
+  if(!APP.schedule) APP.schedule={weekStart:'',rows:[],memo:'',rules:[],dayMemos:{}};
+  if(!APP.schedule.rules||!APP.schedule.rules.length) APP.schedule.rules=DEFAULT_RULES.slice();
+  if(!APP.schedule.rows||!APP.schedule.rows.length) initDefaultRows();
+  if(!APP.schedule.weekStart) APP.schedule.weekStart=todayMonday();
+  if(!APP.schedule.dayMemos){ APP.schedule.dayMemos={}; for(var di=0;di<7;di++) APP.schedule.dayMemos[di]=''; }
+  migrateRows(APP.schedule.rows);
+  for(var si=0;si<APP.saved.length;si++){
+    if(!APP.saved[si].dayMemos){ APP.saved[si].dayMemos={}; for(var di=0;di<7;di++) APP.saved[si].dayMemos[di]=''; }
+    migrateRows(APP.saved[si].rows);
+  }
+  if(!APP.storeName) APP.storeName='Iron Age · Schedule Manager';
+  if(!APP.lang) APP.lang='ko';
+  document.getElementById('week-start-input').value=APP.schedule.weekStart;
+  var mta=document.getElementById('memo-textarea')||document.getElementById('memo-input');
+  if(mta) mta.value=APP.schedule.memo||'';
+  applyStoreName();
+  renderEmployeeList();
+  renderScheduleTable();
+  renderHoursPanel();
+  renderRules();
+  renderSavedList();
+  updateWeekLabel();
+  switchTab('schedule');
+  applyLang();
+}
+
 var APP = { storeName:'Iron Age · Schedule Manager', lang:'ko', employees: [], schedule: { weekStart:'', rows:[], memo:'', rules:[], dayMemos:{} }, saved:[] };
 
 var STR={ko:{
@@ -771,6 +1052,8 @@ var STR={ko:{
 'set.ver':'\u2139\ufe0f \ubc84\uc804 \uc815\ubcf4','set.appName':'Schedule Manager',
 'set.verNum':'\ubc84\uc804: v6.0','set.verSub':'Single-file HTML \u00b7 LocalStorage \u00b7 No server required',
 'set.lang':'\ud83c\udf10 \uc5b8\uc5b4 / Language',
+'set.pw':'\ud83d\udd11 \ube44\ubc00\ubc88\ud638 \ubcc0\uacbd','set.pwBtn':'\ube44\ubc00\ubc88\ud638 \ubcc0\uacbd\ud558\uae30',
+'set.pwHint':'\ube44\ubc00\ubc88\ud638\ub97c \ubcc0\uacbd\ud558\uba74 \ubaa8\ub4e0 \uae30\uae30\uc5d0\uc11c \ub85c\uadf8\uc544\uc6c3 \ub429\ub2c8\ub2e4.',
 'tm.title':'\u23f0 \uadfc\ubb34 \uc2dc\uac04 \uc120\ud0dd','tm.from':'\uc2dc\uc791','tm.to':'\uc885\ub8cc',
 'tm.clockFrom':'\ud83d\udd50 \uc2dc\uc791 \uc9c1\uc811\uc785\ub825','tm.clockTo':'\ud83d\udd50 \uc885\ub8cc \uc9c1\uc811\uc785\ub825',
 'tm.hint1':'\u2460 \uc2dc\uc791 \uc2dc\uac04\uc744 \ud074\ub9ad\ud558\uac70\ub098 \uc9c1\uc811 \uc785\ub825\ud558\uc138\uc694',
@@ -823,6 +1106,8 @@ var STR={ko:{
 'set.ver':'\u2139\ufe0f Version','set.appName':'Schedule Manager',
 'set.verNum':'Version: v6.0','set.verSub':'Single-file HTML \u00b7 LocalStorage \u00b7 No server required',
 'set.lang':'\ud83c\udf10 Language / \uc5b8\uc5b4',
+'set.pw':'\ud83d\udd11 Change Password','set.pwBtn':'Change Password',
+'set.pwHint':'All devices will be logged out after change.',
 'tm.title':'\u23f0 Set Work Hours','tm.from':'Start','tm.to':'End',
 'tm.clockFrom':'\ud83d\udd50 Type start time','tm.clockTo':'\ud83d\udd50 Type end time',
 'tm.hint1':'\u2460 Click or type start time',
@@ -1044,46 +1329,27 @@ function migrateRows(rows){
 // INIT & STORAGE
 // ══════════════════════════════════
 function init(){
-  var raw=localStorage.getItem('ia_sched_v5');
-  // Try upgrading from older key
-  if(!raw){
-    var old=localStorage.getItem('ia_sched_v4');
-    if(!old) old=localStorage.getItem('ia_schedule_v3');
-    if(old) raw=old;
+  initFirebase();
+  if(checkRememberToken()){
+    hideLoginOverlay();
+    loadFromFirebase();
+  } else {
+    showLoginOverlay();
   }
-  if(raw){ try{ APP=JSON.parse(raw); }catch(e){} }
-
-  if(!APP.employees) APP.employees=[];
-  if(!APP.saved) APP.saved=[];
-  if(!APP.schedule) APP.schedule={weekStart:'',rows:[],memo:'',rules:[],dayMemos:{}};
-  if(!APP.schedule.rules||!APP.schedule.rules.length) APP.schedule.rules=DEFAULT_RULES.slice();
-  if(!APP.schedule.rows||!APP.schedule.rows.length) initDefaultRows();
-  if(!APP.schedule.weekStart) APP.schedule.weekStart=todayMonday();
-  if(!APP.schedule.dayMemos){ APP.schedule.dayMemos={}; for(var di=0;di<7;di++) APP.schedule.dayMemos[di]=''; }
-
-  migrateRows(APP.schedule.rows);
-  for(var si=0;si<APP.saved.length;si++){
-    if(!APP.saved[si].dayMemos){ APP.saved[si].dayMemos={}; for(var di=0;di<7;di++) APP.saved[si].dayMemos[di]=''; }
-    migrateRows(APP.saved[si].rows);
-  }
-
-  if(!APP.storeName) APP.storeName='Iron Age · Schedule Manager';
-  if(!APP.lang) APP.lang='ko';
-
-  document.getElementById('week-start-input').value=APP.schedule.weekStart;
-  document.getElementById('memo-input').value=APP.schedule.memo||'';
-  applyStoreName();
-
-  renderEmployeeList();
-  renderScheduleTable();
-  renderHoursPanel();
-  renderRules();
-  renderSavedList();
-  updateWeekLabel();
-  switchTab('schedule');
-  applyLang();
 }
-function saveData(){ localStorage.setItem('ia_sched_v5',JSON.stringify(APP)); }
+function saveData(){
+  localStorage.setItem('ia_sched_v5',JSON.stringify(APP));
+  if(fbDb){
+    fbLastSave=Date.now();
+    fbDb.ref('ironAge/appData').set({
+      employees:APP.employees,
+      schedule:APP.schedule,
+      saved:APP.saved,
+      storeName:APP.storeName,
+      lang:APP.lang
+    }).catch(function(e){ console.error('Firebase save error:',e); });
+  }
+}
 
 // ══════════════════════════════════
 // TABS
@@ -1879,6 +2145,11 @@ function renderSettingsTab(){
       '<p class="text-xs text-red-400 mt-2">'+t('set.resetWarn')+'</p>'+
     '</div>'+
     '<div class="bg-white rounded-2xl p-5 shadow-sm border border-green-100">'+
+      '<p class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">'+t('set.pw')+'</p>'+
+      '<button onclick="openChpw()" class="w-full bg-[#1c3d1c] text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-[#2a562a] transition-colors">'+t('set.pwBtn')+'</button>'+
+      '<p class="text-xs text-gray-400 mt-2">'+t('set.pwHint')+'</p>'+
+    '</div>'+
+    '<div class="bg-white rounded-2xl p-5 shadow-sm border border-green-100">'+
       '<p class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">'+t('set.ver')+'</p>'+
       '<p class="text-sm font-bold text-green-900">'+t('set.appName')+'</p>'+
       '<p class="text-xs text-gray-400 mt-1">'+t('set.verNum')+'</p>'+
@@ -1947,6 +2218,7 @@ function resetAll(){
   if(!confirm(t('conf.resetAll'))) return;
   localStorage.removeItem('ia_sched_v5');
   localStorage.removeItem('ia_sched_v4');
+  if(fbDb) fbDb.ref('ironAge/appData').remove();
   APP={storeName:'Iron Age · Schedule Manager',employees:[],schedule:{weekStart:todayMonday(),rows:[],memo:'',rules:DEFAULT_RULES.slice(),dayMemos:{}},saved:[]};
   initDefaultRows(); saveData();
   document.getElementById('week-start-input').value=APP.schedule.weekStart;
