@@ -828,15 +828,14 @@ var DEFAULT_RULES = [
 // ══════════════════════════════════
 // ⚠️ Replace with YOUR Firebase project config
 var FIREBASE_CONFIG = {
-   apiKey: "AIzaSyBGB9ZGb1J_b_Kt6mbKUosQXlzatpDmxkI",
-    authDomain: "iron-age-schedule.firebaseapp.com",
-    databaseURL: "https://iron-age-schedule-default-rtdb.firebaseio.com",
-    projectId: "iron-age-schedule",
-    storageBucket: "iron-age-schedule.firebasestorage.app",
-    messagingSenderId: "760827305891",
-    appId: "1:760827305891:web:8a9ee0a66cd1b2bad1c416"
-  };
-
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 var fbApp = null;
 var fbDb  = null;
 var fbLastSave = 0;
@@ -972,21 +971,28 @@ function doChangePassword(){
 // FIREBASE DATA LOAD
 // ══════════════════════════════════
 function loadFromFirebase(){
-  if(!fbDb){ initFromLocalAndRender(); return; }
+  // ── Step 1: Show content IMMEDIATELY from localStorage (no blank screen) ──
+  var raw = localStorage.getItem('ia_sched_v5');
+  if(raw){ try{ var loc=JSON.parse(raw); APP=loc; }catch(e){} }
+  initFromLocalAndRender();
+
+  // ── Step 2: Update from Firebase in background ──
+  if(!fbDb) return;
   fbDb.ref('ironAge/appData').on('value', function(snap){
     if(Date.now() - fbLastSave < FB_GUARD_MS) return; // ignore own write echo
     var data = snap.val();
-    if(data){
-      if(data.employees !== undefined) APP.employees = data.employees || [];
-      if(data.schedule  !== undefined) APP.schedule  = data.schedule;
-      if(data.saved     !== undefined) APP.saved     = data.saved || [];
-      if(data.storeName !== undefined) APP.storeName = data.storeName;
-      if(data.lang      !== undefined) APP.lang      = data.lang;
-    } else {
-      // No Firebase data yet: migrate from localStorage
-      var raw = localStorage.getItem('ia_sched_v5');
-      if(raw){ try{ var loc=JSON.parse(raw); APP=loc; }catch(e){} }
+    if(!data){
+      // No Firebase data yet — push local data up to Firebase
+      saveData();
+      return;
     }
+    // Merge Firebase data into APP
+    if(data.employees !== undefined) APP.employees = data.employees || [];
+    if(data.schedule  !== undefined) APP.schedule  = data.schedule;
+    if(data.saved     !== undefined) APP.saved     = data.saved || [];
+    if(data.storeName !== undefined) APP.storeName = data.storeName;
+    if(data.lang      !== undefined) APP.lang      = data.lang;
+    // Re-render with latest server data
     initFromLocalAndRender();
   });
 }
