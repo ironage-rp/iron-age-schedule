@@ -827,7 +827,7 @@ var DEFAULT_RULES = [
 // FIREBASE CONFIG
 // ══════════════════════════════════
 // ⚠️ Replace with YOUR Firebase project config
-var FIREBASE_CONFIG = {
+ const firebaseConfig = {
   apiKey: "AIzaSyBGB9ZGb1J_b_Kt6mbKUosQXlzatpDmxkI",
   authDomain: "iron-age-schedule.firebaseapp.com",
   databaseURL: "https://iron-age-schedule-default-rtdb.firebaseio.com",
@@ -970,78 +970,22 @@ function doChangePassword(){
 // ══════════════════════════════════
 // FIREBASE DATA LOAD
 // ══════════════════════════════════
-// Firebase converts JS arrays to numeric-key objects: [a,b] → {"0":a,"1":b}
-// fbToArr restores them so all .length / .filter / .indexOf calls work correctly
-function fbToArr(val){
-  if(val===null||val===undefined) return [];
-  if(Array.isArray(val)) return val;
-  if(typeof val==='object'){
-    var keys=Object.keys(val);
-    var allNumeric=keys.length>0&&keys.every(function(k){ return /^\d+$/.test(k); });
-    if(allNumeric){
-      var arr=[];
-      for(var i=0;i<keys.length;i++) arr[parseInt(keys[i])]=val[keys[i]];
-      return arr;
-    }
-  }
-  return val;
-}
-function fixFbSchedule(sched){
-  if(!sched) return sched;
-  // Fix rows array
-  sched.rows = fbToArr(sched.rows);
-  for(var ri=0;ri<sched.rows.length;ri++){
-    var row=sched.rows[ri];
-    if(!row) continue;
-    // Fix cells: each day's array
-    if(row.cells){
-      var fixedCells={};
-      for(var d=0;d<7;d++){
-        fixedCells[d]=fbToArr(row.cells[d]);
-      }
-      row.cells=fixedCells;
-    }
-    // Ensure cellMemos, cellTimeFrom, cellTimeTo
-    if(!row.cellMemos){ row.cellMemos={}; for(var d=0;d<7;d++) row.cellMemos[d]=''; }
-    if(!row.cellTimeFrom){ row.cellTimeFrom={}; for(var d=0;d<7;d++) row.cellTimeFrom[d]=null; }
-    if(!row.cellTimeTo){ row.cellTimeTo={}; for(var d=0;d<7;d++) row.cellTimeTo[d]=null; }
-  }
-  // Fix saved array inside schedule if any
-  if(sched.dayMemos===null||sched.dayMemos===undefined){
-    sched.dayMemos={}; for(var d=0;d<7;d++) sched.dayMemos[d]='';
-  }
-  return sched;
-}
-
 function loadFromFirebase(){
-  // ── Step 1: Show content IMMEDIATELY from localStorage (no blank screen) ──
-  var raw = localStorage.getItem('ia_sched_v5');
-  if(raw){ try{ var loc=JSON.parse(raw); APP=loc; }catch(e){} }
-  initFromLocalAndRender();
-
-  // ── Step 2: Sync from Firebase in background ──
-  if(!fbDb) return;
+  if(!fbDb){ initFromLocalAndRender(); return; }
   fbDb.ref('ironAge/appData').on('value', function(snap){
     if(Date.now() - fbLastSave < FB_GUARD_MS) return; // ignore own write echo
     var data = snap.val();
-    if(!data){
-      // No Firebase data yet — push local data up
-      saveData();
-      return;
+    if(data){
+      if(data.employees !== undefined) APP.employees = data.employees || [];
+      if(data.schedule  !== undefined) APP.schedule  = data.schedule;
+      if(data.saved     !== undefined) APP.saved     = data.saved || [];
+      if(data.storeName !== undefined) APP.storeName = data.storeName;
+      if(data.lang      !== undefined) APP.lang      = data.lang;
+    } else {
+      // No Firebase data yet: migrate from localStorage
+      var raw = localStorage.getItem('ia_sched_v5');
+      if(raw){ try{ var loc=JSON.parse(raw); APP=loc; }catch(e){} }
     }
-    // Restore arrays that Firebase mangled into objects
-    if(data.employees !== undefined) APP.employees = fbToArr(data.employees);
-    if(data.saved     !== undefined) APP.saved     = fbToArr(data.saved);
-    if(data.storeName !== undefined) APP.storeName = data.storeName;
-    if(data.lang      !== undefined) APP.lang      = data.lang;
-    if(data.schedule  !== undefined) APP.schedule  = fixFbSchedule(data.schedule);
-    // Fix saved schedules rows too
-    for(var si=0;si<APP.saved.length;si++){
-      if(APP.saved[si]){
-        APP.saved[si]=fixFbSchedule(APP.saved[si]);
-      }
-    }
-    // Re-render with latest server data
     initFromLocalAndRender();
   });
 }
